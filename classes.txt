@@ -1,0 +1,6 @@
+Cisco Systems, Inc.:deep_classify
+Aruba Networks:deep_classify
+Hewlett Packard Enterprise:deep_classify
+SHARP Corporation:printer
+ANDOVER CONTROLS CORPORATION:access_control
+Clover Network, Inc.:point_of_sale
