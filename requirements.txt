@@ -1,6 +1,6 @@
-apscheduler~=3.10.4
-fastapi~=0.115.2
+apscheduler
+fastapi[standard]
 netmiko~=4.4.0
 requests
-flask~=3.0.3
 pydantic~=2.9.2
+mac_vendor_lookup
