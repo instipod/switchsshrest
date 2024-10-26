@@ -3,6 +3,7 @@ import copy
 import json
 import logging
 import re
+import os
 from fastapi import FastAPI, HTTPException
 import requests
 
@@ -54,7 +55,7 @@ class MacLookup():
 
 mac_lookup = MacLookup()
 logger = logging.getLogger('uvicorn.error')
-BASE_URL = "http://localhost:8000"
+BASE_URL = os.environ.get("SSHREST_BASE_URL")
 app = FastAPI(title="switchapi")
 
 
@@ -176,6 +177,22 @@ def get_port_dhcp_bindings(switch, port):
     return data
 
 
+@app.get("/ports/ip_tracking")
+def get_port_ip_tracking(switch, port):
+    try:
+        response = run_command(switch, f"show ip device tracking int {port}")
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Upstream API error: {str(e)}")
+
+    data = []
+    matches = re.findall("([0-9\.]+) +([0-9A-Fa-f\.]+) +([0-9]+)", response)
+    for match in matches:
+        ip, mac, vlan = match
+        data.append({'mac': mac, 'ip_address': ip, 'vlan': int(vlan), 'port': port})
+
+    return data
+
+
 @app.get("/ports/poe_status")
 def get_port_poe_status(switch, port):
     try:
@@ -271,6 +288,8 @@ def get_port_devices(switch, port, auth_sessions=None):
     macs = get_macs_on_port(switch, port)
     neighbors = get_lldp_neighbors_info(switch, port)
     bindings = get_port_dhcp_bindings(switch, port)
+    tracking = get_port_ip_tracking(switch, port)
+
     if auth_sessions is None:
         auth_sessions = get_port_auth_sessions(switch, port)
 
@@ -285,12 +304,17 @@ def get_port_devices(switch, port, auth_sessions=None):
                     neighbor['ip_type'] = "dhcp"
                     neighbor['dhcp_lease_expires'] = binding['life_left']
                     neighbor['mac_address'] = binding['mac']
+            for track in tracking:
+                if track['ip_address'] == neighbor['ip_address']:
+                    if neighbor['ip_type'] != "dhcp":
+                        neighbor['ip_type'] = "static"
+                    neighbor['mac_address'] = track['mac']
 
         # lldp information will supersede any mac table or dhcp info
         if neighbor['device_id'] in macs:
             macs.remove(neighbor['device_id'])
         if 'mac_address' in neighbor.keys() and neighbor['mac_address'] in macs:
-            macs.remove(neighbor('mac_address'))
+            macs.remove(neighbor['mac_address'])
 
         if 'mac_address' in neighbor.keys():
             if neighbor['mac_address'] in auth_sessions.keys():
@@ -384,6 +408,12 @@ def get_port_devices(switch, port, auth_sessions=None):
                 device['ip_type'] = "dhcp"
                 device['dhcp_lease_expires'] = binding['life_left']
                 device['identified_by'] = "dhcp_snooping"
+
+        for track in tracking:
+            if track['mac'].replace(":", "").replace(".", "").upper() == mac.replace(":", ""):
+                device['ip_address'] = track['ip_address']
+                device['ip_type'] = "static"
+                device['identified_by'] = "device_tracking"
 
         if mac not in combined_devices.keys():
             combined_devices[mac] = device
