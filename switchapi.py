@@ -142,7 +142,7 @@ def get_lldp_neighbors_info(switch, port):
         if "Port Description:" in neighbor:
             parsed_neighbor['remote_port'] = re.search("[\\s\\S]*Port Description: (\\S+)[\\s\\S]*", neighbor).group(1)
         if "System Name:" in neighbor:
-            parsed_neighbor['device_name'] = re.search("[\\s\\S]*System Name: ([\\S ]+)[\\s\\S]*", neighbor).group(1)
+            parsed_neighbor['device_name'] = re.search("[\\s\\S]*System Name: (.+)[\\s\\S]*", neighbor).group(1)
         if "System Description:" in neighbor:
             parsed_neighbor['description'] = re.search("[\\s\\S]*System Description: \\n(.+)[\\s\\S]*", neighbor).group(1)
         if "IP:" in neighbor:
@@ -227,6 +227,43 @@ def get_vlans(switch):
         vlans[vlan_id] = vlan_name
 
     return vlans
+
+
+@app.get("/info")
+def get_switch_info(switch):
+    try:
+        response = run_command(switch, "show version")
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Upstream API error: {str(e)}")
+
+    data = {'manufacturer': 'Cisco'}
+
+    if "Model number" in response:
+        try:
+            model_name = re.search("Model number +: +([A-z0-9\\-]+)", response).group(1)
+            data['model'] = model_name
+        except:
+            data['model'] = 'unknown'
+    if "System serial number" in response:
+        try:
+            serial = re.search("System serial number +: +([A-z0-9\\-]+)", response).group(1)
+            data['serial_number'] = serial
+        except:
+            data['serial_number'] = 'unknown'
+    if "License Level" in response:
+        try:
+            license_level = re.search("License Level: +([A-z0-9\\-]+)", response).group(1)
+            data['license'] = license_level
+        except:
+            data['license'] = 'unknown'
+
+    try:
+        software_version = re.search("Cisco.+Software.*Version ([A-z0-9\\-\\(\\)\\.]+)", response).group(1)
+        data['software_version'] = software_version
+    except:
+        data['software_version'] = 'unknown'
+
+    return data
 
 
 @app.get("/ports/devices")
@@ -481,9 +518,10 @@ def get_port_detail(switch, port, include_devices=True):
         else:
             data['mode'] = "unknown"
 
-        if "Voice VLAN:" in response:
+        if "Voice VLAN:" in response and "Voice VLAN: none" not in response:
             access_vlan_search = re.search("[\\s\\S]*Voice VLAN: ([0-9]{0,5}) \\(([A-z0-9\"\\-_]+)\\)[\\s\\S]*",
                                            response)
+            print(response)
             data['voice_vlan_id'] = int(access_vlan_search.group(1))
             data['voice_vlan_name'] = access_vlan_search.group(2).replace("\"", "")
             data['voice_vlan_enabled'] = True
