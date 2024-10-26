@@ -1,0 +1,12 @@
+FROM python:3.13
+WORKDIR /app
+COPY ./requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir --upgrade -r /app/requirements.txt
+COPY ./switchapi.py /app/app.py
+COPY ./classes.txt /app/classes.txt
+COPY ./download_vendors.py /app/download_vendors.py
+RUN python3 /app/download_vendors.py
+
+ENV SSHREST_BASE_URL=http://sshrest
+
+CMD ["fastapi", "run", "app.py", "--port", "80"]
