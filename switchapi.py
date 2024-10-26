@@ -154,7 +154,7 @@ def get_lldp_neighbors_info(switch, port):
         if "Manufacturer:" in neighbor:
             parsed_neighbor['vendor'] = re.search("[\\s\\S]*Manufacturer: (.+)[\\s\\S]*", neighbor).group(1)
         if "Model:" in neighbor:
-            parsed_neighbor['model'] = re.search("[\\s\\S]*Model: (.+)[\\s\\S]*", neighbor).group(1)
+            parsed_neighbor['model'] = re.search("[\\s\\S]*Model: ?(.+)[\\s\\S]*", neighbor).group(1)
 
         parsed_neighbors.append(parsed_neighbor)
 
@@ -172,6 +172,10 @@ def get_port_dhcp_bindings(switch, port):
     matches = re.findall("([A-z0-9:\\.]+) +([0-9\\.]+) +([0-9]+) +[A-z\\-]+ +([0-9]+) +([A-z0-9\\/\\-]+)", response)
     for match in matches:
         mac, ip, time_left, vlan, port = match
+
+        mac = mac.replace(":", "").replace(".", "").upper()
+        mac = ':'.join(mac[i:i + 2] for i in range(0, 12, 2))
+
         data.append({'mac': mac, 'ip_address': ip, 'life_left': int(time_left), 'vlan': int(vlan), 'port': port})
 
     return data
@@ -188,6 +192,10 @@ def get_port_ip_tracking(switch, port):
     matches = re.findall("([0-9\.]+) +([0-9A-Fa-f\.]+) +([0-9]+)", response)
     for match in matches:
         ip, mac, vlan = match
+
+        mac = mac.replace(":", "").replace(".", "").upper()
+        mac = ':'.join(mac[i:i + 2] for i in range(0, 12, 2))
+
         data.append({'mac': mac, 'ip_address': ip, 'vlan': int(vlan), 'port': port})
 
     return data
